@@ -3,6 +3,9 @@ const Company = require('../models/Company');
 const crypto = require('crypto');
 const sendEmail = require('../utils/sendEmailcomp');
 const jwt = require('jsonwebtoken');
+const axios = require("axios");
+const FormData = require("form-data");
+const fs = require("fs");
 
 exports.createWorker = async (req, res) => {
   try {
@@ -198,6 +201,49 @@ exports.signinWorker = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Internal server error',
+    });
+  }
+};
+
+// ===============================
+// 📌 Worker uploads plantation images → ML server → Carbon Credit
+// ===============================
+exports.uploadPlantationImages = async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ success: false, message: "No files uploaded" });
+    }
+
+    // Step 1: Prepare form-data for ML server
+    const formData = new FormData();
+    req.files.forEach(file => {
+      formData.append("files", fs.createReadStream(file.path));
+    });
+
+    // Step 2: Send to ML server
+    const mlResponse = await axios.post(
+      "https://mangrove-density.onrender.com",
+      formData,
+      { headers: formData.getHeaders() }
+    );
+
+    const { individual_densities, mean_density } = mlResponse.data;
+
+    // Step 3: Calculate carbon credits (adjust formula as needed)
+    const carbonCredits = mean_density * 0.5; // Example formula
+
+    // Step 4: Send response
+    res.json({
+      success: true,
+      individual_densities,
+      mean_density,
+      carbonCredits,
+    });
+  } catch (error) {
+    console.error("Error processing images:", error.message);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to process images" 
     });
   }
 };
