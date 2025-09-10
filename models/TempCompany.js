@@ -23,10 +23,16 @@ const tempCompanySchema = new mongoose.Schema({
   industryType: { type: String },
   annualCarbonEmission: { type: Number },
   website: { type: String },
+
+  // 🔹 OTP verification fields
+  isVerified: { type: Boolean, default: false },
+  otp: { type: String },
+  otpExpires: { type: Date },
+
   createdAt: { type: Date, default: Date.now }
 });
 
-// Hash password
+// 🔹 Hash password before saving
 tempCompanySchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
   const salt = await bcrypt.genSalt(10);
