@@ -9,7 +9,16 @@ const govAuthRoutes = require('./routes/govAuth');
 dotenv.config();
 connectDB();
 
+
 const app = express();
+
+// ✅ Ensure uploads folder exists
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+  console.log("📂 Created 'uploads' folder");
+}
+
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));

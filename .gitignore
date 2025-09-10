@@ -18,7 +18,7 @@ logs/*.log
 Thumbs.db
 
 # Uploads
-
+uploads/
 
 # Cache
 .cache/
