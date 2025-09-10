@@ -1,6 +1,9 @@
 const TempCompany = require('../models/TempCompany');
 const PendingCompany = require('../models/PendingCompany');
 const sendEmail = require('../utils/sendEmail');
+const Company = require('../models/Company'); // For future reference after approval
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 // 📌 1. Send OTP + Save Company Temporarily
 exports.sendOtpAndSaveTemp = async (req, res) => {
@@ -85,5 +88,53 @@ exports.verifyOtpAndRegister = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error verifying OTP', error });
+  }
+};
+
+exports.loginCompany = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    // Find the company in TempCompany (since government approval is pending)
+    const company = await TempCompany.findOne({ email });
+    if (!company) {
+      return res.status(404).json({ message: 'Company not found or not registered' });
+    }
+
+    // Check if email is verified
+    if (!company.isVerified) {
+      return res.status(403).json({ message: 'Email not verified. Please verify first.' });
+    }
+
+    // Check password
+    const isMatch = await bcrypt.compare(password, company.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: company._id, role: 'company', email: company.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    res.status(200).json({
+      message: 'Login successful',
+      token,
+      company: {
+        id: company._id,
+        companyName: company.companyName,
+        email: company.email,
+        type: company.type,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error', error });
   }
 };

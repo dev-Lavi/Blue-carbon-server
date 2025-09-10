@@ -9,4 +9,6 @@ router.post('/send-otp', upload.single('registrationDoc'), companyController.sen
 // Verify OTP & Register
 router.post('/verify-otp', companyController.verifyOtpAndRegister);
 
+router.post('/login', companyController.loginCompany);
+
 module.exports = router;
