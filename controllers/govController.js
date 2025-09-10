@@ -1,5 +1,6 @@
 const TempCompany = require('../models/TempCompany');
 const Company = require('../models/Company');
+const sendEmail = require('../utils/sendEmail'); 
 
 // Get all pending approvals
 exports.getPendingCompanies = async (req, res) => {
@@ -32,6 +33,13 @@ exports.approveCompany = async (req, res) => {
 
     // Remove from TempCompany
     await TempCompany.findByIdAndDelete(id);
+
+      // 📧 Send Approval Email
+    await sendEmail(
+      tempCompany.email,
+      'Your Company Has Been Approved - Blue Carbon',
+      `Hello ${tempCompany.companyName},\n\nYour company registration has been approved by the Blue Carbon team. You can now log in to your account using your registered email and password to access our services.\n\nWelcome aboard!\n\n- Blue Carbon Team`
+    );
 
     res.status(200).json({
       message: 'Company approved successfully',

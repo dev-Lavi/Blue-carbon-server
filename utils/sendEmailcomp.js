@@ -4,16 +4,16 @@ const sendEmail = async (options) => {
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-      user: process.env.SMTP_EMAIL,
-      pass: process.env.SMTP_PASSWORD
-    }
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
   });
 
   await transporter.sendMail({
-    from: process.env.SMTP_EMAIL,
-    to: options.to, // <- THIS might be undefined
-    subject: options.subject,
-    text: options.text,
+    from: `"BlueCarbon" <${process.env.SMTP_EMAIL}>`,
+    to: options.email,        // match controller (options.email)
+    subject: options.subject, // match controller
+    text: options.message,    // match controller (message)
   });
 };
 

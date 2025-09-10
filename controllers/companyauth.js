@@ -137,7 +137,7 @@
     // Generate JWT token
     const token = jwt.sign(
       { id: company._id, role: 'company', email: company.email },
-      process.env.JWT_SECRET,
+      process.env.JWT_COMPANY_SECRET,
       { expiresIn: '1d' }
     );
 
@@ -156,3 +156,5 @@
     res.status(500).json({ message: 'Server error', error });
   }
 };
+
+
