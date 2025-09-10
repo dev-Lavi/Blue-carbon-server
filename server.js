@@ -5,6 +5,8 @@ const connectDB = require('./config/db');
 const companyRoutes = require('./routes/companyauth');
 const govRoutes = require('./routes/govRoutes');
 const govAuthRoutes = require('./routes/govAuth');
+const fs = require('fs');         // ✅ Make sure this is included
+const path = require('path'); 
 
 dotenv.config();
 connectDB();
