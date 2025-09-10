@@ -11,10 +11,10 @@ const companySchema = new mongoose.Schema({
   },
   phone: { type: String, required: true },
   type: {
-    type: String,
-    enum: ['NGO', 'Govt Body', 'Pvt Company', 'Cooperative', 'Research Institute'],
-    required: true
-  },
+  type: String,
+  enum: ['other', 'partnership', 'pvtltd', 'llp'],
+  required: true
+},
   registrationNumber: { type: String, required: true, unique: true },
   registrationDoc: { type: String },
   PAN: { type: String },
