@@ -11,7 +11,7 @@ exports.getPendingCompanies = async (req, res) => {
   }
 };
 
-// Approve a company
+// Approve a company 
 exports.approveCompany = async (req, res) => {
   try {
     const { id } = req.params;
@@ -21,15 +21,26 @@ exports.approveCompany = async (req, res) => {
       return res.status(404).json({ message: 'Company not found' });
     }
 
-    // Move data to Company collection
-    const approvedCompany = new Company(tempCompany.toObject());
+    // Convert mongoose doc to plain object
+    const companyData = tempCompany.toObject();
+    delete companyData._id;   // remove old _id so MongoDB generates a new one
+    delete companyData.__v;   // optional: remove version key
+
+    // Create and save approved company
+    const approvedCompany = new Company({ ...companyData });
     await approvedCompany.save();
 
     // Remove from TempCompany
     await TempCompany.findByIdAndDelete(id);
 
-    res.status(200).json({ message: 'Company approved successfully' });
+    res.status(200).json({
+      message: 'Company approved successfully',
+      company: approvedCompany,
+    });
   } catch (error) {
+    console.error("Error approving company:", error);
     res.status(500).json({ message: 'Error approving company', error });
   }
 };
+
+
