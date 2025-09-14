@@ -208,10 +208,81 @@ exports.signinWorker = async (req, res) => {
 // ===============================
 // 📌 Worker uploads plantation images → ML server → Carbon Credit
 // ===============================
+// exports.uploadPlantationImages = async (req, res) => {
+//   try {
+//     if (!req.files || req.files.length === 0) {
+//       return res.status(400).json({ success: false, message: "No files uploaded" });
+//     }
+
+//     // Step 1: Prepare form-data for ML server
+//     const formData = new FormData();
+//     req.files.forEach(file => {
+//       formData.append("files", fs.createReadStream(file.path));
+//     });
+
+//     // Step 2: Send to ML server
+//     const mlResponse = await axios.post(
+//       "https://mangrove-density.onrender.com",
+//       formData,
+//       { headers: formData.getHeaders() }
+//     );
+
+//     const { individual_densities, mean_density } = mlResponse.data;
+
+//     // Step 3: Calculate carbon credits (adjust formula as needed)
+//     const carbonCredits = mean_density * 0.5; // Example formula
+
+//     // Step 4: Send response
+//     res.json({
+//       success: true,
+//       individual_densities,
+//       mean_density,
+//       carbonCredits,
+//     });
+//   } catch (error) {
+//     console.error("Error processing images:", error.message);
+//     res.status(500).json({ 
+//       success: false, 
+//       message: "Failed to process images" 
+//     });
+//   }
+// };
+
+// ===============================
+// 📌 Worker uploads plantation images → ML server → Store in DataApproval (Government Review)
+// ===============================
 exports.uploadPlantationImages = async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ success: false, message: "No files uploaded" });
+    }
+
+    // Extract additional data from request body
+    const {
+      latitude,
+      longitude,
+      address,
+      areaName,
+      plantationType,
+      areaSize,
+      plantingDate
+    } = req.body;
+
+    // Validate required location data
+    if (!latitude || !longitude) {
+      return res.status(400).json({
+        success: false,
+        message: "Location coordinates (latitude, longitude) are required"
+      });
+    }
+
+    // Get worker details
+    const worker = await Worker.findById(req.user.id);
+    if (!worker) {
+      return res.status(404).json({
+        success: false,
+        message: "Worker not found"
+      });
     }
 
     // Step 1: Prepare form-data for ML server
@@ -221,6 +292,7 @@ exports.uploadPlantationImages = async (req, res) => {
     });
 
     // Step 2: Send to ML server
+    console.log('📤 Sending images to ML server...');
     const mlResponse = await axios.post(
       "https://mangrove-density.onrender.com",
       formData,
@@ -232,18 +304,87 @@ exports.uploadPlantationImages = async (req, res) => {
     // Step 3: Calculate carbon credits (adjust formula as needed)
     const carbonCredits = mean_density * 0.5; // Example formula
 
-    // Step 4: Send response
+    // Step 4: Prepare image data for storage
+    const plantationImages = req.files.map(file => ({
+      originalName: file.originalname,
+      filename: file.filename,
+      path: file.path,
+      size: file.size
+    }));
+
+    // Step 5: Create DataApproval record (NOT blockchain storage yet)
+    const dataApproval = new DataApproval({
+      workerId: worker._id,
+      companyId: worker.companyId,
+      plantationImages,
+      individualDensities: individual_densities,
+      meanDensity: mean_density,
+      carbonCredits: carbonCredits,
+      location: {
+        latitude: parseFloat(latitude),
+        longitude: parseFloat(longitude),
+        address,
+        areaName
+      },
+      plantationType: plantationType || 'Mangrove',
+      areaSize: areaSize ? parseFloat(areaSize) : null,
+      plantingDate: plantingDate ? new Date(plantingDate) : null,
+      status: 'pending' // Waiting for government approval
+    });
+
+    await dataApproval.save();
+
+    // Step 6: Update worker statistics
+    await Worker.findByIdAndUpdate(
+      worker._id,
+      { 
+        $inc: { totalDataUploads: 1 },
+        lastLogin: new Date()
+      }
+    );
+
+    // Step 7: Send response (NO blockchain storage yet)
     res.json({
       success: true,
-      individual_densities,
-      mean_density,
-      carbonCredits,
+      message: "Data uploaded successfully and submitted for government approval",
+      data: {
+        submissionId: dataApproval.submissionId,
+        individual_densities,
+        mean_density,
+        carbonCredits,
+        status: 'pending_approval',
+        note: "Your submission will be reviewed by government officials before being stored on blockchain"
+      }
     });
+
   } catch (error) {
     console.error("Error processing images:", error.message);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to process images" 
+    res.status(500).json({
+      success: false,
+      message: "Failed to process images",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Get worker's submissions status
+exports.getMySubmissions = async (req, res) => {
+  try {
+    const submissions = await DataApproval.find({ workerId: req.user.id })
+      .populate('reviewedBy', 'name email')
+      .sort({ submittedAt: -1 });
+
+    res.json({
+      success: true,
+      count: submissions.length,
+      data: { submissions }
+    });
+
+  } catch (error) {
+    console.error("Error fetching submissions:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch submissions"
     });
   }
 };

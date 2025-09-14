@@ -8,7 +8,7 @@ const tempCompanySchema = new mongoose.Schema({
   phone: { type: String, required: true },
   type: {
   type: String,
-  enum: ['other', 'partnership', 'pvtltd', 'llp'],
+  enum: ['other', 'partnership', 'pvtltd', 'llp',"NGO","Research Institute"],
   required: true
 },
   registrationNumber: { type: String, required: true, unique: true },

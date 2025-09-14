@@ -83,9 +83,8 @@ exports.resetPasswordGov = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Hash and save new password
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    user.password = hashedPassword;
+    // Assign new password (model hook will hash it)
+    user.password = newPassword;
     await user.save();
 
     res.status(200).json({ message: "Password reset successful" });
