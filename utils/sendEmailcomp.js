@@ -1,20 +1,24 @@
-const nodemailer = require('nodemailer');
+const nodemailer = require("nodemailer");
 
 const sendEmail = async (options) => {
+  // ✅ Configure Brevo SMTP
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: "smtp-relay.brevo.com",
+    port: 587, // use 465 if you want SSL
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
+      user: process.env.BREVO_USER, // your Brevo account email
+      pass: process.env.BREVO_PASS, // your Brevo API key
     },
   });
 
   await transporter.sendMail({
-    from: `"BlueCarbon" <${process.env.SMTP_EMAIL}>`,
-    to: options.email,        // match controller (options.email)
-    subject: options.subject, // match controller
-    text: options.message,    // match controller (message)
+    from: `"BlueCarbon" <${process.env.BREVO_USER}>`, // sender must be your Brevo email
+    to: options.email,        // recipient
+    subject: options.subject, // subject line
+    text: options.message,    // plain text body
   });
+
+  console.log(`📧 Email sent to ${options.email}`);
 };
 
 module.exports = sendEmail;

@@ -1,26 +1,28 @@
-const nodemailer = require('nodemailer');
+const nodemailer = require("nodemailer");
 
 async function sendEmail(to, subject, text) {
   try {
+    // ✅ Configure transporter for Brevo SMTP
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: "smtp-relay.brevo.com",
+      port: 587, // TLS
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
+        user: process.env.BREVO_USER,  // your Brevo account email
+        pass: process.env.BREVO_PASS,  // API key
+      },
     });
 
     const mailOptions = {
-      from: `"Blue Carbon Project" <${process.env.EMAIL_USER}>`,
+      from: `"Blue Carbon Project" <${process.env.BREVO_USER}>`,
       to,
       subject,
-      text
+      text,
     };
 
     await transporter.sendMail(mailOptions);
     console.log(`📧 Email sent to ${to}`);
   } catch (err) {
-    console.error('❌ Email sending failed:', err);
+    console.error("❌ Email sending failed:", err);
   }
 }
 

@@ -40,6 +40,11 @@ console.log("✅ Gov routes mounted at /api/gov");
 app.use('/api/gov/auth', govAuthRoutes);
 console.log("✅ Gov Auth routes mounted at /api/gov/auth");
 
+// ✅ Add root route
+app.get("/", (req, res) => {
+  res.json({ message: "🚀 Blue Carbon API is running!" });
+});
+
 // Catch-all for unmapped routes
 app.use((req, res, next) => {
   console.log(`❌ No route matched: ${req.method} ${req.originalUrl}`);
