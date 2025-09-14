@@ -1,26 +1,22 @@
-const nodemailer = require("nodemailer");
+const SibApiV3Sdk = require("sib-api-v3-sdk");
 
 async function sendEmail(to, subject, text) {
   try {
-    // ✅ Configure transporter for Brevo SMTP
-    const transporter = nodemailer.createTransport({
-      host: "smtp-relay.brevo.com",
-      port: 587, // TLS
-      auth: {
-        user: process.env.BREVO_USER,  // your Brevo account email
-        pass: process.env.BREVO_PASS,  // API key
-      },
-    });
+    // Configure Brevo API
+    const defaultClient = SibApiV3Sdk.ApiClient.instance;
+    const apiKey = defaultClient.authentications["api-key"];
+    apiKey.apiKey = process.env.BREVO_API_KEY; // from Brevo dashboard
 
-    const mailOptions = {
-      from: `"Blue Carbon Project" <${process.env.BREVO_USER}>`,
-      to,
-      subject,
-      text,
-    };
+    const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
 
-    await transporter.sendMail(mailOptions);
-    console.log(`📧 Email sent to ${to}`);
+    const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+    sendSmtpEmail.sender = { email: "970037001@smtp-brevo.com", name: "BlueCarbon" };
+    sendSmtpEmail.to = [{ email: to }];
+    sendSmtpEmail.subject = subject;
+    sendSmtpEmail.textContent = text;
+
+    const response = await apiInstance.sendTransacEmail(sendSmtpEmail);
+    console.log("📧 Email sent:", response.messageId);
   } catch (err) {
     console.error("❌ Email sending failed:", err);
   }
