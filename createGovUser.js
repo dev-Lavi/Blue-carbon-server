@@ -11,8 +11,8 @@ mongoose.connect(process.env.MONGO_URI)
 
 (async () => {
   try {
-    const gmail = 'xenoyeh916@fanwn.com';
-    const password = 'securePass123';
+    const gmail = 'lavi2312042@akgec.ac.in';
+    const password = 'Pass1234';
 
     const gov = new GovUser({
       gmail,
