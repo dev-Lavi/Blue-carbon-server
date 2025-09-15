@@ -38,7 +38,7 @@ app.use('/api/companies', companyDashboardRoutes);
 console.log("✅ Company Dashboard routes mounted at /api/companies");
 
 // Worker Routes
-app.use('/api/workers', workerRoutes);
+app.use('/api/worker', workerRoutes);
 console.log("✅ Worker routes mounted at /api/workers");
 
 // Government Routes

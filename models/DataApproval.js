@@ -260,7 +260,7 @@ const dataApprovalSchema = new mongoose.Schema({
     storedAt: Date,
     networkUsed: {
       type: String,
-      enum: ['ethereum', 'polygon', 'binance', 'other'],
+      enum: ['ethereum', 'polygon', 'binance', 'sepolia', 'other'],
       default: 'polygon'
     }
   },
