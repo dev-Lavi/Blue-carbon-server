@@ -1,5 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 // ✅ Import ALL functions from controller
 const {
@@ -15,6 +18,49 @@ const {
 // ✅ Import middleware
 const { companyAuth, workerAuth } = require('../middleware/auth');
 const upload = require('../middleware/upload2');
+
+// ===============================
+// 📌 MULTER CONFIGURATION FOR PLANTATION IMAGES
+// ===============================
+
+// Create upload directory if it doesn't exist
+const uploadDir = 'uploads/plantations';
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log('📁 Created plantation upload directory');
+}
+
+// Configure storage for plantation images
+const plantationStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname);
+    cb(null, uniqueName);
+  }
+});
+
+// Create multer instance for plantation images
+const plantationUpload = multer({ 
+  storage: plantationStorage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit per file
+    files: 15 // Max 15 files total
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  }
+}).fields([
+  { name: 'vertical', maxCount: 1 },      // 1 vertical image
+  { name: 'horizontals', maxCount: 10 }   // Up to 10 horizontal images
+]);
+
+
 
 // ===============================
 // 📌 PUBLIC ROUTES (No Authentication)
@@ -156,7 +202,8 @@ router.get('/company-statistics', companyAuth, async (req, res) => {
 // 📌 WORKER DATA UPLOAD ROUTES
 // ===============================
 // Field workers - Upload plantation images
-router.post('/upload-images', workerAuth, upload.array('images', 10), uploadPlantationImages);
+// ✅ NEW: Upload plantation images with ML analysis
+router.post('/upload-plantation-images', workerAuth, plantationUpload, uploadPlantationImages);
 
 // Seagrass researchers - Upload research documents  
 router.post('/upload-seagrass-data', workerAuth, upload.array('documents', 20), uploadSeagrassResearchData);

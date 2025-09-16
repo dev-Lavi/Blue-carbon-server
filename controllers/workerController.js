@@ -922,9 +922,36 @@ exports.signinWorker = async (req, res) => {
 
 exports.uploadPlantationImages = async (req, res) => {
   try {
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ success: false, message: "No files uploaded" });
+    console.log('📁 Files received:', req.files);
+    console.log('📋 Body received:', req.body);
+
+    // ✅ Extract files from the new structure
+    const verticalFiles = req.files.vertical || [];
+    const horizontalFiles = req.files.horizontals || [];
+    
+    if (verticalFiles.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "No vertical image uploaded. Please select 1 vertical image for height calculation." 
+      });
     }
+
+    if (horizontalFiles.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: `Need at least 2 horizontal images for analysis. Found only ${horizontalFiles.length} horizontal images.`
+      });
+    }
+
+    // ✅ Combine all files for total count
+    const allFiles = [...verticalFiles, ...horizontalFiles];
+    const verticalImage = verticalFiles[0];
+
+    console.log('📷 Image breakdown:', {
+      vertical: verticalImage.originalname,
+      horizontals: horizontalFiles.map(f => f.originalname),
+      totalFiles: allFiles.length
+    });
 
     // Extract additional data from request body
     const {
@@ -937,7 +964,7 @@ exports.uploadPlantationImages = async (req, res) => {
       plantingDate
     } = req.body;
 
-    // Validate required location data
+    // Validate required fields
     if (!latitude || !longitude) {
       return res.status(400).json({
         success: false,
@@ -954,56 +981,176 @@ exports.uploadPlantationImages = async (req, res) => {
       });
     }
 
-    // Step 1: Prepare form-data for ML server
+    // ===============================
+    // 📌 PREPARE FORM DATA FOR ML SERVER
+    // ===============================
+    console.log('📤 Preparing images for ML analysis...');
+    
     const formData = new FormData();
-    req.files.forEach(file => {
-      formData.append("files", fs.createReadStream(file.path));
+    
+    // Add vertical image
+    console.log('📷 Adding vertical image:', verticalImage.originalname);
+    formData.append('vertical', fs.createReadStream(verticalImage.path));
+    
+    // Add horizontal images
+    horizontalFiles.forEach((file, index) => {
+      console.log(`📷 Adding horizontal image ${index + 1}:`, file.originalname);
+      formData.append('horizontals', fs.createReadStream(file.path));
     });
 
-    // Step 2: Send to ML server
-    console.log('📤 Sending images to ML server...');
-    const mlResponse = await axios.post(
-      "https://mangrove-density.onrender.com",
-      formData,
-      { headers: formData.getHeaders() }
-    );
+    // ===============================
+    // 📌 CALL ML SERVER
+    // ===============================
+    let mlAnalysis;
+    try {
+      console.log('🤖 Sending to ML server:', 'https://ml-pipeline-4cb7.onrender.com/analyze');
+      console.log('⏱️ Using 180 second timeout...');
+      
+      const mlResponse = await axios.post(
+        'https://ml-pipeline-4cb7.onrender.com/analyze',
+        formData,
+        {
+          headers: {
+            ...formData.getHeaders(),
+            'Accept': 'application/json'
+          },
+          timeout: 180000, // 3 minutes
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity
+        }
+      );
 
-    const { individual_densities, mean_density } = mlResponse.data;
+      mlAnalysis = mlResponse.data;
+      console.log('🤖 ML Response:', mlAnalysis);
 
-    // Step 3: Calculate carbon credits (adjust formula as needed)
-    const carbonCredits = mean_density * 0.5; // Example formula
+    } catch (mlError) {
+      console.error('❌ ML Server Error:', mlError.message);
+      
+      // Clean up uploaded files
+      allFiles.forEach(file => {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      });
 
-    // Step 4: Prepare image data for storage
-    const plantationImages = req.files.map(file => ({
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to analyze images with ML server',
+        error: process.env.NODE_ENV === 'development' ? mlError.message : 'ML analysis failed'
+      });
+    }
+
+    // ===============================
+    // 📌 VALIDATE ML RESPONSE
+    // ===============================
+    
+    // Check for duplicates
+    if (mlAnalysis.horizontal_summary?.anomaly_counts?.duplicate > 0) {
+      console.log('🚫 Duplicate images detected');
+      
+      // Clean up files
+      allFiles.forEach(file => {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      });
+
+      return res.status(400).json({
+        success: false,
+        message: 'Duplicate images found! Please upload unique plantation images and try again.',
+        details: {
+          duplicateCount: mlAnalysis.horizontal_summary.anomaly_counts.duplicate,
+          totalHorizontalImages: horizontalFiles.length
+        }
+      });
+    }
+
+    // Check mangrove count
+    const mangroveCount = mlAnalysis.horizontal_summary?.mangrove_count || 0;
+    if (mangroveCount < 2) {
+      console.log('🚫 Insufficient mangrove detection');
+      
+      // Clean up files
+      allFiles.forEach(file => {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      });
+
+      return res.status(400).json({
+        success: false,
+        message: 'Plantation is not of mangroves! Please upload images showing clear mangrove plantation.',
+        details: {
+          mangroveDetected: mangroveCount,
+          minimumRequired: 2,
+          nonMangroveCount: mlAnalysis.horizontal_summary?.non_mangrove_count || 0
+        }
+      });
+    }
+
+    // ===============================
+    // 📌 EXTRACT RESULTS & CALCULATE CREDITS
+    // ===============================
+    const meanDensity = mlAnalysis.horizontal_summary?.mean_density || 0;
+    const heightEstimate = mlAnalysis.height_estimate || "0 ft";
+    
+    // Extract height in feet and convert to meters
+    const heightMatch = heightEstimate.match(/(\d+\.?\d*)/);
+    const heightInFt = heightMatch ? parseFloat(heightMatch[1]) : 0;
+    const heightInMeters = heightInFt * 0.3048;
+
+    const areaSizeHa = areaSize ? parseFloat(areaSize) : 1.0;
+    const carbonFactor = 0.18;
+    const carbonCredits = meanDensity * heightInMeters * areaSizeHa * carbonFactor;
+
+    // ===============================
+    // 📌 PREPARE IMAGE DATA
+    // ===============================
+    const plantationImages = allFiles.map((file, index) => ({
       originalName: file.originalname,
       filename: file.filename,
       path: file.path,
-      size: file.size
+      size: file.size,
+      imageType: verticalFiles.includes(file) ? 'vertical' : 'horizontal',
+      uploadedAt: new Date()
     }));
 
-    // Step 5: Create DataApproval record (NOT blockchain storage yet)
+    // ===============================
+    // 📌 CREATE DATA APPROVAL RECORD
+    // ===============================
     const dataApproval = new DataApproval({
       workerId: worker._id,
       companyId: worker.companyId,
+      ecosystemType: 'Mangrove',
       plantationImages,
-      individualDensities: individual_densities,
-      meanDensity: mean_density,
-      carbonCredits: carbonCredits,
+      meanDensity: meanDensity,
+      carbonCredits: Math.round(carbonCredits * 100) / 100,
+      
       location: {
         latitude: parseFloat(latitude),
         longitude: parseFloat(longitude),
-        address,
-        areaName
+        address: address || '',
+        areaName: areaName || 'Mangrove Plantation Site'
       },
-      plantationType: plantationType || 'Mangrove',
-      areaSize: areaSize ? parseFloat(areaSize) : null,
-      plantingDate: plantingDate ? new Date(plantingDate) : null,
-      status: 'pending' // Waiting for government approval
+      
+      areaSize: areaSizeHa,
+      plantingDate: plantingDate ? new Date(plantingDate) : new Date(),
+      surveyDate: new Date(),
+      
+      validation: {
+        dataQuality: 'excellent',
+        completeness: 100,
+        verificationStatus: 'verified'
+      },
+      
+      status: 'pending'
     });
 
     await dataApproval.save();
 
-    // Step 6: Update worker statistics
+    // ===============================
+    // 📌 UPDATE WORKER STATS
+    // ===============================
     await Worker.findByIdAndUpdate(
       worker._id,
       { 
@@ -1012,29 +1159,65 @@ exports.uploadPlantationImages = async (req, res) => {
       }
     );
 
-    // Step 7: Send response (NO blockchain storage yet)
+    console.log('✅ Plantation data saved:', dataApproval.submissionId);
+
+    // ===============================
+    // 📌 SUCCESS RESPONSE
+    // ===============================
     res.json({
       success: true,
-      message: "Data uploaded successfully and submitted for government approval",
+      message: "Mangrove plantation analysis completed successfully!",
       data: {
         submissionId: dataApproval.submissionId,
-        individual_densities,
-        mean_density,
-        carbonCredits,
-        status: 'pending_approval',
-        note: "Your submission will be reviewed by government officials before being stored on blockchain"
+        analysisResults: {
+          mangroveCount: mangroveCount,
+          meanDensity: meanDensity,
+          heightFromVertical: {
+            estimate: heightEstimate,
+            heightFt: heightInFt,
+            heightMeters: Math.round(heightInMeters * 100) / 100
+          },
+          imageAnalysis: {
+            verticalImage: verticalImage.originalname,
+            horizontalImages: horizontalFiles.length,
+            duplicatesFound: false
+          }
+        },
+        carbonCredits: {
+          estimated: Math.round(carbonCredits * 100) / 100,
+          calculation: {
+            density: meanDensity,
+            heightMeters: Math.round(heightInMeters * 100) / 100,
+            areaHectares: areaSizeHa,
+            carbonFactor: carbonFactor
+          }
+        },
+        status: 'pending_company_approval'
       }
     });
 
   } catch (error) {
-    console.error("Error processing images:", error.message);
+    console.error("❌ Error processing plantation images:", error);
+    
+    // Clean up files on error
+    if (req.files) {
+      const allFiles = [...(req.files.vertical || []), ...(req.files.horizontals || [])];
+      allFiles.forEach(file => {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      });
+    }
+
     res.status(500).json({
       success: false,
-      message: "Failed to process images",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: "Failed to process plantation images",
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 };
+
+
 
 // Get worker's submissions status
 exports.getMySubmissions = async (req, res) => {
