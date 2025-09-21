@@ -42,11 +42,11 @@ app.use('/api/worker', workerRoutes);
 console.log("✅ Worker routes mounted at /api/workers");
 
 // Government Routes
-app.use('/api/government', govRoutes);
+app.use('/api/gov', govRoutes);
 console.log("✅ Government routes mounted at /api/government");
 
 // Government Authentication
-app.use('/api/government/auth', govAuthRoutes);
+app.use('/api/gov/auth', govAuthRoutes);
 console.log("✅ Government Auth routes mounted at /api/government/auth");
 
 // ✅ Add root route
