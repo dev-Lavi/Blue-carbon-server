@@ -87,9 +87,9 @@ const companySchema = new mongoose.Schema({
 // ===============================
 // 📌 INDEXES FOR PERFORMANCE
 // ===============================
-companySchema.index({ email: 1 });
-companySchema.index({ walletAddress: 1 });
-companySchema.index({ registrationNumber: 1 });
+// companySchema.index({ email: 1 });
+// companySchema.index({ walletAddress: 1 });
+// companySchema.index({ registrationNumber: 1 });
 companySchema.index({ 'activityLog.accountStatus': 1 });
 
 // ===============================
