@@ -161,8 +161,7 @@ const dataApprovalSchema = new mongoose.Schema({
   // 📌 AREA OCCUPATION TRACKING
   // ===============================
   occupiedUntil: { 
-    type: Date,
-    index: true // For efficient queries
+    type: Date
   },
 
   // ✅ Enhanced occupation tracking

@@ -137,8 +137,8 @@ const workerSchema = new mongoose.Schema({
 });
 
 // ✅ INDEXES for performance
-workerSchema.index({ email: 1 });
-workerSchema.index({ workerId: 1 });
+// workerSchema.index({ email: 1 });
+// workerSchema.index({ workerId: 1 });
 workerSchema.index({ companyId: 1 });
 workerSchema.index({ workerType: 1 });
 workerSchema.index({ assignedAreas: 1 });
